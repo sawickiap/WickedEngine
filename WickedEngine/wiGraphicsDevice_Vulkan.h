@@ -21,6 +21,8 @@
 #include "Utility/volk.h"
 #include "Utility/vk_mem_alloc.h"
 
+#include "VkExtensionsFeaturesHelp.hpp"
+
 #include <vector>
 #include <unordered_map>
 #include <deque>
@@ -59,14 +61,15 @@ namespace wiGraphics
 		VkPhysicalDeviceFragmentShadingRatePropertiesKHR fragment_shading_rate_properties = {};
 		VkPhysicalDeviceMeshShaderPropertiesNV mesh_shader_properties = {};
 
-		VkPhysicalDeviceFeatures2 features2 = {};
-		VkPhysicalDeviceVulkan11Features features_1_1 = {};
-		VkPhysicalDeviceVulkan12Features features_1_2 = {};
-		VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
-		VkPhysicalDeviceRayTracingPipelineFeaturesKHR raytracing_features = {};
-		VkPhysicalDeviceRayQueryFeaturesKHR raytracing_query_features = {};
-		VkPhysicalDeviceFragmentShadingRateFeaturesKHR fragment_shading_rate_features = {};
-		VkPhysicalDeviceMeshShaderFeaturesNV mesh_shader_features = {};
+		VKEFH::DeviceInitHelp device_init_help;
+		//VkPhysicalDeviceFeatures2 features2 = {};
+		//VkPhysicalDeviceVulkan11Features features_1_1 = {};
+		//VkPhysicalDeviceVulkan12Features features_1_2 = {};
+		//VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
+		//VkPhysicalDeviceRayTracingPipelineFeaturesKHR raytracing_features = {};
+		//VkPhysicalDeviceRayQueryFeaturesKHR raytracing_query_features = {};
+		//VkPhysicalDeviceFragmentShadingRateFeaturesKHR fragment_shading_rate_features = {};
+		//VkPhysicalDeviceMeshShaderFeaturesNV mesh_shader_features = {};
 
 		VkSurfaceCapabilitiesKHR swapchain_capabilities;
 		std::vector<VkSurfaceFormatKHR> swapchain_formats;

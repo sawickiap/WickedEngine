@@ -551,7 +551,7 @@ namespace Vulkan_Internal
 
 		return flags;
 	}
-	
+
 	bool checkExtensionSupport(const char* checkExtension, const std::vector<VkExtensionProperties>& available_extensions)
 	{
 		for (const auto& x : available_extensions)
@@ -973,7 +973,7 @@ using namespace Vulkan_Internal;
 		bufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 		bufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 		bufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-		if (device->features_1_2.bufferDeviceAddress == VK_TRUE)
+		if (device->device_init_help.GetVkPhysicalDeviceVulkan12Features().bufferDeviceAddress == VK_TRUE)
 		{
 			bufferInfo.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		}
@@ -1995,22 +1995,18 @@ using namespace Vulkan_Internal;
 				VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 				VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME,
 			};
-			std::vector<const char*> enabled_deviceExtensions;
 
 			for (const auto& dev : devices) 
 			{
 				bool suitable = true;
 
-				uint32_t extensionCount;
-				VkResult res = vkEnumerateDeviceExtensionProperties(dev, nullptr, &extensionCount, nullptr);
-				assert(res == VK_SUCCESS);
-				std::vector<VkExtensionProperties> available_deviceExtensions(extensionCount);
-				res = vkEnumerateDeviceExtensionProperties(dev, nullptr, &extensionCount, available_deviceExtensions.data());
+				device_init_help = VKEFH::DeviceInitHelp(); // Reset to clean state.
+				VkResult res = device_init_help.EnumerateExtensions(dev);
 				assert(res == VK_SUCCESS);
 
 				for (auto& x : required_deviceExtensions)
 				{
-					if (!checkExtensionSupport(x, available_deviceExtensions))
+					if (!device_init_help.IsExtensionSupported(x))
 					{
 						suitable = false;
 					}
@@ -2047,18 +2043,6 @@ using namespace Vulkan_Internal;
 
 				if (suitable) 
 				{
-					features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-					features_1_1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-					features_1_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-					features2.pNext = &features_1_1;
-					features_1_1.pNext = &features_1_2;
-					void** features_chain = &features_1_2.pNext;
-					acceleration_structure_features = {};
-					raytracing_features = {};
-					raytracing_query_features = {};
-					fragment_shading_rate_features = {};
-					mesh_shader_features = {};
-
 					properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 					properties_1_1.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES;
 					properties_1_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
@@ -2070,64 +2054,45 @@ using namespace Vulkan_Internal;
 					fragment_shading_rate_properties = {};
 					mesh_shader_properties = {};
 
-					enabled_deviceExtensions = required_deviceExtensions;
+					device_init_help.EnableAllFeatureStructs(false);
+					device_init_help.EnableFeatureStruct(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES, true);
+					device_init_help.EnableFeatureStruct(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, true);
 
-					if (checkExtensionSupport(VK_KHR_SPIRV_1_4_EXTENSION_NAME, available_deviceExtensions))
+					if (device_init_help.IsExtensionSupported(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME))
 					{
-						enabled_deviceExtensions.push_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
-					}
-
-					if (checkExtensionSupport(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, available_deviceExtensions))
-					{
-						enabled_deviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-						assert(checkExtensionSupport(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, available_deviceExtensions));
-						enabled_deviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
-						acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-						*features_chain = &acceleration_structure_features;
-						features_chain = &acceleration_structure_features.pNext;
+						assert(device_init_help.IsExtensionSupported(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME));
+						device_init_help.EnableFeatureStruct(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, true);
 						acceleration_structure_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
 						*properties_chain = &acceleration_structure_properties;
 						properties_chain = &acceleration_structure_properties.pNext;
 
-						if (checkExtensionSupport(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, available_deviceExtensions))
+						if (device_init_help.IsExtensionSupported(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME))
 						{
-							enabled_deviceExtensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-							enabled_deviceExtensions.push_back(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
-							raytracing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-							*features_chain = &raytracing_features;
-							features_chain = &raytracing_features.pNext;
+							assert(device_init_help.IsExtensionSupported(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME));
+							device_init_help.EnableFeatureStruct(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR, true);
 							raytracing_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
 							*properties_chain = &raytracing_properties;
 							properties_chain = &raytracing_properties.pNext;
 						}
 
-						if (checkExtensionSupport(VK_KHR_RAY_QUERY_EXTENSION_NAME, available_deviceExtensions))
+						if (device_init_help.IsExtensionSupported(VK_KHR_RAY_QUERY_EXTENSION_NAME))
 						{
-							enabled_deviceExtensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-							raytracing_query_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-							*features_chain = &raytracing_query_features;
-							features_chain = &raytracing_query_features.pNext;
+							device_init_help.EnableFeatureStruct(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, true);
 						}
 					}
 
-					if (!DEBUGDEVICE && checkExtensionSupport(VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME, available_deviceExtensions))
+					if (!DEBUGDEVICE && device_init_help.IsExtensionSupported(VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME))
 					{
 						// Note: VRS will crash vulkan validation layers: https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/2473
-						enabled_deviceExtensions.push_back(VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
-						fragment_shading_rate_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR;
-						*features_chain = &fragment_shading_rate_features;
-						features_chain = &fragment_shading_rate_features.pNext;
+						device_init_help.EnableFeatureStruct(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR, true);
 						fragment_shading_rate_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_PROPERTIES_KHR;
 						*properties_chain = &fragment_shading_rate_properties;
 						properties_chain = &fragment_shading_rate_properties.pNext;
 					}
 
-					if (checkExtensionSupport(VK_NV_MESH_SHADER_EXTENSION_NAME, available_deviceExtensions))
+					if (device_init_help.IsExtensionSupported(VK_NV_MESH_SHADER_EXTENSION_NAME))
 					{
-						enabled_deviceExtensions.push_back(VK_NV_MESH_SHADER_EXTENSION_NAME);
-						mesh_shader_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV;
-						*features_chain = &mesh_shader_features;
-						features_chain = &mesh_shader_features.pNext;
+						device_init_help.EnableFeatureStruct(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV, true);
 						mesh_shader_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_NV;
 						*properties_chain = &mesh_shader_properties;
 						properties_chain = &mesh_shader_properties.pNext;
@@ -2155,55 +2120,56 @@ using namespace Vulkan_Internal;
 
 			assert(properties2.properties.limits.timestampComputeAndGraphics == VK_TRUE);
 
-			vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
+			device_init_help.GetPhysicalDeviceFeatures(physicalDevice);
 
-			assert(features2.features.imageCubeArray == VK_TRUE);
-			assert(features2.features.independentBlend == VK_TRUE);
-			assert(features2.features.geometryShader == VK_TRUE);
-			assert(features2.features.samplerAnisotropy == VK_TRUE);
-			assert(features2.features.shaderClipDistance == VK_TRUE);
-			assert(features2.features.textureCompressionBC == VK_TRUE);
-			assert(features2.features.occlusionQueryPrecise == VK_TRUE);
-			if (features2.features.tessellationShader == VK_TRUE)
+			assert(device_init_help.GetFeatures().imageCubeArray == VK_TRUE);
+			assert(device_init_help.GetFeatures().independentBlend == VK_TRUE);
+			assert(device_init_help.GetFeatures().geometryShader == VK_TRUE);
+			assert(device_init_help.GetFeatures().samplerAnisotropy == VK_TRUE);
+			assert(device_init_help.GetFeatures().shaderClipDistance == VK_TRUE);
+			assert(device_init_help.GetFeatures().textureCompressionBC == VK_TRUE);
+			assert(device_init_help.GetFeatures().occlusionQueryPrecise == VK_TRUE);
+			if (device_init_help.GetFeatures().tessellationShader == VK_TRUE)
 			{
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_TESSELLATION;
 			}
-			if (features2.features.shaderStorageImageExtendedFormats == VK_TRUE)
+			if (device_init_help.GetFeatures().shaderStorageImageExtendedFormats == VK_TRUE)
 			{
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_UAV_LOAD_FORMAT_COMMON;
 			}
 			capabilities |= GRAPHICSDEVICE_CAPABILITY_RENDERTARGET_AND_VIEWPORT_ARRAYINDEX_WITHOUT_GS; // let's hope for the best...
 
-			if (raytracing_features.rayTracingPipeline == VK_TRUE)
+			if (device_init_help.GetVkPhysicalDeviceRayTracingPipelineFeaturesKHR().rayTracingPipeline == VK_TRUE)
 			{
-				assert(acceleration_structure_features.accelerationStructure == VK_TRUE);
-				assert(features_1_2.bufferDeviceAddress == VK_TRUE);
+				assert(device_init_help.GetVkPhysicalDeviceAccelerationStructureFeaturesKHR().accelerationStructure == VK_TRUE);
+				assert(device_init_help.GetVkPhysicalDeviceVulkan12Features().bufferDeviceAddress == VK_TRUE);
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_RAYTRACING;
 				SHADER_IDENTIFIER_SIZE = raytracing_properties.shaderGroupHandleSize;
 			}
-			if (raytracing_query_features.rayQuery == VK_TRUE)
+			if (device_init_help.GetVkPhysicalDeviceRayQueryFeaturesKHR().rayQuery == VK_TRUE)
 			{
-				assert(acceleration_structure_features.accelerationStructure == VK_TRUE);
-				assert(features_1_2.bufferDeviceAddress == VK_TRUE);
+				assert(device_init_help.GetVkPhysicalDeviceAccelerationStructureFeaturesKHR().accelerationStructure == VK_TRUE);
+				assert(device_init_help.GetVkPhysicalDeviceVulkan12Features().bufferDeviceAddress == VK_TRUE);
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_RAYTRACING_INLINE;
 			}
-			if (mesh_shader_features.meshShader == VK_TRUE && mesh_shader_features.taskShader == VK_TRUE)
+			if (device_init_help.GetVkPhysicalDeviceMeshShaderFeaturesNV().meshShader == VK_TRUE &&
+				device_init_help.GetVkPhysicalDeviceMeshShaderFeaturesNV().taskShader == VK_TRUE)
 			{
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_MESH_SHADER;
 			}
-			if (fragment_shading_rate_features.pipelineFragmentShadingRate == VK_TRUE)
+			if (device_init_help.GetVkPhysicalDeviceFragmentShadingRateFeaturesKHR().pipelineFragmentShadingRate == VK_TRUE)
 			{
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_VARIABLE_RATE_SHADING;
 			}
-			if (fragment_shading_rate_features.attachmentFragmentShadingRate == VK_TRUE)
+			if (device_init_help.GetVkPhysicalDeviceFragmentShadingRateFeaturesKHR().attachmentFragmentShadingRate == VK_TRUE)
 			{
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_VARIABLE_RATE_SHADING_TIER2;
 				VARIABLE_RATE_SHADING_TILE_SIZE = std::min(fragment_shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.width, fragment_shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.height);
 			}
 
-			assert(features_1_2.hostQueryReset == VK_TRUE);
+			assert(device_init_help.GetVkPhysicalDeviceVulkan12Features().hostQueryReset == VK_TRUE);
 
-			if (features_1_2.descriptorIndexing)
+			if (device_init_help.GetVkPhysicalDeviceVulkan12Features().descriptorIndexing)
 			{
 				capabilities |= GRAPHICSDEVICE_CAPABILITY_BINDLESS_DESCRIPTORS;
 			}
@@ -2291,21 +2257,12 @@ using namespace Vulkan_Internal;
 			createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 			createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-			createInfo.pEnabledFeatures = nullptr;
-			createInfo.pNext = &features2;
+			createInfo.pNext = device_init_help.GetFeaturesChain();
 
-			createInfo.enabledExtensionCount = static_cast<uint32_t>(enabled_deviceExtensions.size());
-			createInfo.ppEnabledExtensionNames = enabled_deviceExtensions.data();
+			createInfo.enabledExtensionCount = device_init_help.GetEnabledExtensionCount();
+			createInfo.ppEnabledExtensionNames = device_init_help.GetEnabledExtensionNames();
 
-			if (debuglayer)
-			{
-				createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-				createInfo.ppEnabledLayerNames = validationLayers.data();
-			}
-			else
-			{
-				createInfo.enabledLayerCount = 0;
-			}
+			// The original code incorrectly tries to set up device layers - these are not supported by modern Vulkan, only instance layers.
 
 			res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &device);
 			assert(res == VK_SUCCESS);
@@ -2327,7 +2284,7 @@ using namespace Vulkan_Internal;
 		allocatorInfo.physicalDevice = physicalDevice;
 		allocatorInfo.device = device;
 		allocatorInfo.instance = instance;
-		if (features_1_2.bufferDeviceAddress)
+		if (device_init_help.GetVkPhysicalDeviceVulkan12Features().bufferDeviceAddress)
 		{
 			allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 		}
@@ -2974,7 +2931,7 @@ using namespace Vulkan_Internal;
 		{
 			bufferInfo.usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
 		}
-		if (features_1_2.bufferDeviceAddress == VK_TRUE)
+		if (device_init_help.GetVkPhysicalDeviceVulkan12Features().bufferDeviceAddress == VK_TRUE)
 		{
 			bufferInfo.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		}
@@ -6224,22 +6181,22 @@ using namespace Vulkan_Internal;
 
 			if (fragment_shading_rate_properties.fragmentShadingRateNonTrivialCombinerOps == VK_TRUE)
 			{
-				if (fragment_shading_rate_features.primitiveFragmentShadingRate == VK_TRUE)
+				if (device_init_help.GetVkPhysicalDeviceFragmentShadingRateFeaturesKHR().primitiveFragmentShadingRate == VK_TRUE)
 				{
 					combiner[0] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR;
 				}
-				if (fragment_shading_rate_features.attachmentFragmentShadingRate == VK_TRUE)
+				if (device_init_help.GetVkPhysicalDeviceFragmentShadingRateFeaturesKHR().attachmentFragmentShadingRate == VK_TRUE)
 				{
 					combiner[1] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR;
 				}
 			}
 			else
 			{
-				if (fragment_shading_rate_features.primitiveFragmentShadingRate == VK_TRUE)
+				if (device_init_help.GetVkPhysicalDeviceFragmentShadingRateFeaturesKHR().primitiveFragmentShadingRate == VK_TRUE)
 				{
 					combiner[0] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_REPLACE_KHR;
 				}
-				if (fragment_shading_rate_features.attachmentFragmentShadingRate == VK_TRUE)
+				if (device_init_help.GetVkPhysicalDeviceFragmentShadingRateFeaturesKHR().attachmentFragmentShadingRate == VK_TRUE)
 				{
 					combiner[1] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_REPLACE_KHR;
 				}
