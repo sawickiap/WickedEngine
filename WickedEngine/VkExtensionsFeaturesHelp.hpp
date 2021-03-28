@@ -57,6 +57,16 @@ public:
     std::vector<EnabledItem> m_Items;
     std::vector<const char*> m_EnabledItemNames;
 
+	void Reset()
+	{
+		for(size_t i = 0, count = m_Items.size(); i < count; ++i)
+		{
+			m_Items[i].m_Supported = false;
+			m_Items[i].m_Enabled = false;
+		}
+		m_EnabledItemNames.clear();
+	}
+
     bool IsSupported(const char* name) const
     {
         size_t index = Find(name);
@@ -126,6 +136,11 @@ private:
 class InitHelpBase
 {
 public:
+	InitHelpBase(const InitHelpBase&) = delete;
+	InitHelpBase(InitHelpBase&&) = delete;
+	InitHelpBase& operator=(const InitHelpBase&) = delete;
+	InitHelpBase& operator=(InitHelpBase&&) = delete;
+
     bool IsExtensionSupported(const char* extensionName) const
     {
         assert(m_ExtensionsEnumerated && "You should call EnumerateExtensions first.");
@@ -222,7 +237,18 @@ protected:
     };
     std::vector<FeatureStruct> m_FeatureStructs;
 
-    void LoadExtensions(const VkExtensionProperties* extProps, size_t extPropCount)
+	InitHelpBase() { }
+
+	void Reset()
+	{
+		m_ExtensionsEnumerated = false;
+		m_CreationPrepared = false;
+		m_Extensions.Reset();
+		for(size_t i = 0, count = m_FeatureStructs.size(); i < count; ++i)
+			m_FeatureStructs[i].m_Enabled = true;
+	}
+
+	void LoadExtensions(const VkExtensionProperties* extProps, size_t extPropCount)
     {
         assert(!m_ExtensionsEnumerated && "You should call EnumerateExtensions only once.");
         for(size_t extPropIndex = 0; extPropIndex < extPropCount; ++extPropIndex)
@@ -272,6 +298,11 @@ private:
 
 class InstanceInitHelp : public InitHelpBase
 {
+	InstanceInitHelp(const InstanceInitHelp&) = delete;
+	InstanceInitHelp(InstanceInitHelp&&) = delete;
+	InstanceInitHelp& operator=(const InstanceInitHelp&) = delete;
+	InstanceInitHelp& operator=(InstanceInitHelp&&) = delete;
+
 #define VKEFH_INSTANCE_EXTENSION(extensionName)
 #define VKEFH_INSTANCE_LAYER(layerName)
 #define VKEFH_INSTANCE_FEATURE_STRUCT(structName, sType) \
@@ -306,6 +337,14 @@ public:
 #undef VKEFH_DEVICE_EXTENSION
 #undef VKEFH_DEVICE_FEATURE_STRUCT
     }
+
+	void Reset()
+	{
+		InitHelpBase::Reset();
+		m_LayersEnumerated = false;
+		m_Layers.Reset();
+		m_FeaturesChain = nullptr;
+	}
 
     VkResult EnumerateExtensions()
     {
@@ -425,6 +464,11 @@ private:
 
 class DeviceInitHelp : public InitHelpBase
 {
+	DeviceInitHelp(const DeviceInitHelp&) = delete;
+	DeviceInitHelp(DeviceInitHelp&&) = delete;
+	DeviceInitHelp& operator=(const DeviceInitHelp&) = delete;
+	DeviceInitHelp& operator=(DeviceInitHelp&&) = delete;
+
 #define VKEFH_INSTANCE_EXTENSION(extensionName)
 #define VKEFH_INSTANCE_LAYER(layerName)
 #define VKEFH_INSTANCE_FEATURE_STRUCT(structName, sType)
@@ -467,6 +511,13 @@ public:
 #undef VKEFH_DEVICE_EXTENSION
 #undef VKEFH_DEVICE_FEATURE_STRUCT
     }
+
+	void Reset()
+	{
+		InitHelpBase::Reset();
+		m_PhysicalDeviceFeaturesQueried = false;
+		m_Features2 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+	}
 
     VkResult EnumerateExtensions(VkPhysicalDevice physicalDevice)
     {

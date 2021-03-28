@@ -2000,7 +2000,7 @@ using namespace Vulkan_Internal;
 			{
 				bool suitable = true;
 
-				device_init_help = VKEFH::DeviceInitHelp(); // Reset to clean state.
+				device_init_help.Reset();
 				VkResult res = device_init_help.EnumerateExtensions(dev);
 				assert(res == VK_SUCCESS);
 
@@ -2251,14 +2251,13 @@ using namespace Vulkan_Internal;
 				queueCreateInfos.push_back(queueCreateInfo);
 			}
 
+			device_init_help.PrepareCreation();
+
 			VkDeviceCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
 			createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 			createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
 			createInfo.pNext = device_init_help.GetFeaturesChain();
-
 			createInfo.enabledExtensionCount = device_init_help.GetEnabledExtensionCount();
 			createInfo.ppEnabledExtensionNames = device_init_help.GetEnabledExtensionNames();
 
