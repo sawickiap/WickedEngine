@@ -552,50 +552,6 @@ namespace Vulkan_Internal
 		return flags;
 	}
 
-	bool checkExtensionSupport(const char* checkExtension, const std::vector<VkExtensionProperties>& available_extensions)
-	{
-		for (const auto& x : available_extensions)
-		{
-			if (strcmp(x.extensionName, checkExtension) == 0)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	// Validation layer helpers:
-	const std::vector<const char*> validationLayers = {
-		"VK_LAYER_KHRONOS_validation"
-	};
-	bool checkValidationLayerSupport()
-	{
-		uint32_t layerCount;
-		VkResult res = vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-		assert(res == VK_SUCCESS);
-
-		std::vector<VkLayerProperties> availableLayers(layerCount);
-		res = vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-		assert(res == VK_SUCCESS);
-
-		for (const char* layerName : validationLayers) {
-			bool layerFound = false;
-
-			for (const auto& layerProperties : availableLayers) {
-				if (strcmp(layerName, layerProperties.layerName) == 0) {
-					layerFound = true;
-					break;
-				}
-			}
-
-			if (!layerFound) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
 	VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessengerCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, 
 		VkDebugUtilsMessageTypeFlagsEXT message_type,
@@ -1884,26 +1840,18 @@ using namespace Vulkan_Internal;
 		appInfo.apiVersion = VK_API_VERSION_1_2;
 
 		// Enumerate available extensions:
-		uint32_t extensionCount = 0;
-		res = vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+		VKEFH::InstanceInitHelp instInitHelp;
+		res = instInitHelp.EnumerateLayers();
 		assert(res == VK_SUCCESS);
-		std::vector<VkExtensionProperties> availableInstanceExtensions(extensionCount);
-		res = vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableInstanceExtensions.data());
+		res = instInitHelp.EnumerateExtensions();
 		assert(res == VK_SUCCESS);
 
-		std::vector<const char*> extensionNames;
-
-		if (checkExtensionSupport(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, availableInstanceExtensions))
-		{
-			// This is needed for not only debug layer, but also debug markers, object naming, etc:
-			extensionNames.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		}
-		
-		extensionNames.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+		assert(instInitHelp.IsExtensionSupported(VK_KHR_SURFACE_EXTENSION_NAME));
 
 #ifdef _WIN32
-		extensionNames.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+		assert(instInitHelp.IsExtensionSupported(VK_KHR_WIN32_SURFACE_EXTENSION_NAME));
 #elif SDL2
+#error Not supporting this for now.
 		{
 			uint32_t extensionCount;
 			SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, nullptr);
@@ -1915,25 +1863,26 @@ using namespace Vulkan_Internal;
 		}
 #endif // _WIN32
 		
-		if (debuglayer && !checkValidationLayerSupport())
+		if (debuglayer && !instInitHelp.IsLayerSupported("VK_LAYER_KHRONOS_validation"))
 		{
 			wiHelper::messageBox("Vulkan validation layer requested but not available!");
 			debuglayer = false;
 		}
 
+		instInitHelp.EnableLayer("VK_LAYER_KHRONOS_validation", debuglayer);
+
 		// Create instance:
 		{
+			instInitHelp.PrepareCreation();
+
 			VkInstanceCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+			createInfo.pNext = instInitHelp.GetFeaturesChain();
 			createInfo.pApplicationInfo = &appInfo;
-			createInfo.enabledExtensionCount = static_cast<uint32_t>(extensionNames.size());
-			createInfo.ppEnabledExtensionNames = extensionNames.data();
-			createInfo.enabledLayerCount = 0;
-			if (debuglayer)
-			{
-				createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-				createInfo.ppEnabledLayerNames = validationLayers.data();
-			}
+			createInfo.enabledExtensionCount = instInitHelp.GetEnabledExtensionCount();
+			createInfo.ppEnabledExtensionNames = instInitHelp.GetEnabledExtensionNames();
+			createInfo.enabledLayerCount = instInitHelp.GetEnabledLayerCount();
+			createInfo.ppEnabledLayerNames = instInitHelp.GetEnabledLayerNames();
 			res = vkCreateInstance(&createInfo, nullptr, &instance);
 			assert(res == VK_SUCCESS);
 
